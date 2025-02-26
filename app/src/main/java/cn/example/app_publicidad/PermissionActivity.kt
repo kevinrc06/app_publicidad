@@ -62,14 +62,14 @@ class PermissionActivity : AppCompatActivity()  {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
+/*    @RequiresApi(Build.VERSION_CODES.O)
     override fun onPause() {
         super.onPause()
         if (hasUsageStatsPermission()) {
             startBackgroundService()
             finish()
         }
-    }
+    }*/
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun startBackgroundService() {
