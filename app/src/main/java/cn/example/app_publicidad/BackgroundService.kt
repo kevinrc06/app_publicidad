@@ -13,6 +13,8 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import android.util.Base64
+import cn.example.app_publicidad.baseDeDatos.AppDatabase
+import cn.example.app_publicidad.baseDeDatos.ImagenEntity
 import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
@@ -20,6 +22,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipInputStream
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class BackgroundService : Service() {
 
@@ -69,7 +74,6 @@ class BackgroundService : Service() {
         }
     }
 
-
     private fun startForegroundService() {
         val notification = NotificationCompat.Builder(this, "background_channel")
             .setContentTitle("Servicio en segundo plano")
@@ -99,6 +103,7 @@ class BackgroundService : Service() {
 
                 archivoZip?.let {
                     descomprimirZip(it)
+                    guardarImagenesEnDB(this)
                 }
 
                 prefs.edit().putString("ultima_fecha", fechaActual).apply()
@@ -112,23 +117,17 @@ class BackgroundService : Service() {
 
     private fun eliminarArchivosAnteriores() {
         val directorioBase = getDir("MisImagenes", Context.MODE_PRIVATE)
-
-        // Borrar el archivo ZIP anterior si existe
         val archivoZip = File(directorioBase, "imagenes.zip")
         if (archivoZip.exists()) {
             archivoZip.delete()
             Log.d("EliminarArchivos", "Archivo ZIP eliminado: ${archivoZip.absolutePath}")
         }
-
-        // Borrar la carpeta de imágenes descomprimidas si existe
         val carpetaImagenes = File(directorioBase, "ImagenesDescomprimidas")
         if (carpetaImagenes.exists()) {
             carpetaImagenes.deleteRecursively()
             Log.d("EliminarArchivos", "Carpeta de imágenes eliminada: ${carpetaImagenes.absolutePath}")
         }
     }
-
-
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -141,6 +140,25 @@ class BackgroundService : Service() {
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
+        }
+    }
+
+    private fun guardarImagenesEnDB(context: Context) {
+        val database = AppDatabase.getDatabase(context)
+        val imagenDao = database.imagenDao()
+
+
+        val listaImagenes = imagenesBase64.mapIndexed { index, base64 ->
+            ImagenEntity(nombre = "imagen_$index", base64 = base64)
+        }
+
+        CoroutineScope(Dispatchers.IO).launch {
+            if (imagenDao.obtenerCantidad()>0){
+                imagenDao.eliminarTodo()
+                Log.d("BaseDatos","Se limpiaron los datos")
+            }
+            imagenDao.insertarImagenes(listaImagenes)
+            Log.d("BaseDatos", "Imágenes guardadas en Room: ${listaImagenes.size}")
         }
     }
 
@@ -229,10 +247,6 @@ class BackgroundService : Service() {
             Log.e("DescomprimirZip", "Error al descomprimir: ${e.message}")
         }
     }
-
-
-
-
 
     fun convertirImagenABase64(archivo: File): String {
         return try {
