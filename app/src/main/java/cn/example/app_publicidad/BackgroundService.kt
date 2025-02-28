@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -96,6 +97,12 @@ class BackgroundService : Service() {
         if (fechaActual != ultimaFecha) {
             Log.d("Servicio", "Día cambiado, iniciando nueva descarga.")
 
+            if (!hayConexionInternet()) {
+                Log.d("Servicio", "No hay conexión a Internet. La descarga se reintentará más tarde.")
+                reintentarDescarga() // Programamos un reintento
+                return START_STICKY
+            }
+
             eliminarArchivosAnteriores()
             Thread {
                 val url = "http://10.173.51.208:5000/download"
@@ -104,9 +111,8 @@ class BackgroundService : Service() {
                 archivoZip?.let {
                     descomprimirZip(it)
                     guardarImagenesEnDB(this)
-                }
-
-                prefs.edit().putString("ultima_fecha", fechaActual).apply()
+                    prefs.edit().putString("ultima_fecha", fechaActual).apply()
+                } ?: Log.e("Servicio", "Error: No se pudo descargar el archivo ZIP.")
             }.start()
         } else {
             Log.d("Servicio", "Ya se realizó la descarga hoy, no se ejecutará nuevamente.")
@@ -114,6 +120,22 @@ class BackgroundService : Service() {
 
         return START_STICKY
     }
+
+    private fun hayConexionInternet(): Boolean {
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val networkInfo = connectivityManager.activeNetworkInfo
+        return networkInfo != null && networkInfo.isConnected
+    }
+
+    private fun reintentarDescarga() {
+        val handler = Handler(Looper.getMainLooper())
+        handler.postDelayed({
+            Log.d("Servicio", "Reintentando la descarga...")
+            onStartCommand(null, 0, 0) // Llama de nuevo a onStartCommand
+        }, 2 * 60 * 1000) // Reintentar en 2 minutos
+    }
+
+
 
     private fun eliminarArchivosAnteriores() {
         val directorioBase = getDir("MisImagenes", Context.MODE_PRIVATE)
