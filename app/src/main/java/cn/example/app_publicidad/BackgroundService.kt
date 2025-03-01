@@ -30,7 +30,8 @@ import kotlinx.coroutines.launch
 class BackgroundService : Service() {
 
     private lateinit var inactivityDetector: InactivityDetector
-    val imagenesBase64 = mutableListOf<String>()
+    val imagenesBase64 = mutableListOf<Pair<String, String>>()
+    val horariosMap = mutableMapOf<String, Pair<String, String>>()
 
 
     override fun onCreate() {
@@ -169,20 +170,29 @@ class BackgroundService : Service() {
         val database = AppDatabase.getDatabase(context)
         val imagenDao = database.imagenDao()
 
+        val listaImagenes = imagenesBase64.map { (nombreImagen, base64) ->
+            val (horaInicio, horaFin) = horariosMap[nombreImagen] ?: Pair("00:00", "23:59")
 
-        val listaImagenes = imagenesBase64.mapIndexed { index, base64 ->
-            ImagenEntity(nombre = "imagen_$index", base64 = base64)
+            ImagenEntity(
+                nombre = nombreImagen,
+                base64 = base64,
+                horaInicio = horaInicio,
+                horaFin = horaFin
+            )
         }
 
         CoroutineScope(Dispatchers.IO).launch {
-            if (imagenDao.obtenerCantidad()>0){
+            if (imagenDao.obtenerCantidad() > 0) {
                 imagenDao.eliminarTodo()
-                Log.d("BaseDatos","Se limpiaron los datos")
+                Log.d("BaseDatos", "Se limpiaron los datos")
             }
+
             imagenDao.insertarImagenes(listaImagenes)
             Log.d("BaseDatos", "Imágenes guardadas en Room: ${listaImagenes.size}")
         }
     }
+
+
 
     private fun descargarZip(url: String, nombreArchivo: String, context: Context): File? {
         try {
@@ -233,22 +243,32 @@ class BackgroundService : Service() {
         try {
             ZipInputStream(FileInputStream(archivoZip)).use { zipStream ->
                 var entry = zipStream.nextEntry
-                val nombresProcesados = mutableSetOf<String>()
+                //val nombresProcesados = mutableSetOf<String>()
 
                 while (entry != null) {
-                    if (!entry.isDirectory && esImagen(entry.name) && nombresProcesados.add(entry.name)) {
+
+                    val entryName = entry.name
+                    if (!entry.isDirectory ) {
                         val archivoSalida = File(destino, entry.name)
-                        Log.d("DescomprimirZip", "Procesando imagen: ${entry.name}")
+                        Log.d("DescomprimirZip", "Procesando archivo: ${entry.name}")
 
-                        FileOutputStream(archivoSalida).use { output ->
-                            zipStream.copyTo(output)
-                        }
+                        if (entryName == "horarios.txt") {
+                            val metadataFile = File(destino, entryName)
+                            FileOutputStream(metadataFile).use { output ->
+                                zipStream.copyTo(output)
+                            }
+                            leerMetadata(metadataFile)
+                        } else if (esImagen(entryName)){
+                            FileOutputStream(archivoSalida).use { output ->
+                                zipStream.copyTo(output)
+                            }
 
-                        val base64String = convertirImagenABase64(archivoSalida)
+                            val base64String = convertirImagenABase64(archivoSalida)
 
-                        if (!imagenesProcesadas.contains(base64String)) {
-                            imagenesBase64.add(base64String)
-                            imagenesProcesadas.add(base64String)
+                            if (!imagenesProcesadas.contains(base64String)) {
+                                imagenesBase64.add(Pair(entryName, base64String))
+                                imagenesProcesadas.add(base64String)
+                            }
                         }
                     }
                     zipStream.closeEntry()
@@ -257,18 +277,28 @@ class BackgroundService : Service() {
             }
             Log.d("ImagenesBase64", "Imágenes convertidas: ${imagenesBase64.size}")
             Log.d("DescomprimirZip", "Descompresión completa en: ${destino.absolutePath}")
-            Log.d("ImagenesBase64", "Lista de imágenes en Base64:")
-            imagenesBase64.forEachIndexed { index, base64 ->
-                Log.d(
-                    "ImagenesBase64",
-                    "[$index] ${base64.take(50)}..."
-                ) // Mostramos solo los primeros 50 caracteres
-            }
 
         } catch (e: Exception) {
             Log.e("DescomprimirZip", "Error al descomprimir: ${e.message}")
         }
     }
+
+    private fun leerMetadata(metadataFile: File) {
+        try {
+            metadataFile.forEachLine { linea ->
+                val partes = linea.split(",")
+                if (partes.size == 3) {
+                    val nombreImagen = partes[0].trim()
+                    val horaInicio = partes[1].trim()
+                    val horaFin = partes[2].trim()
+                    horariosMap[nombreImagen] = Pair(horaInicio, horaFin)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("Metadata", "Error al leer metadata.txt: ${e.message}")
+        }
+    }
+
 
     fun convertirImagenABase64(archivo: File): String {
         return try {

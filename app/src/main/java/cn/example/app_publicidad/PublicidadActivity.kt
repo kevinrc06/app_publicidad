@@ -13,18 +13,28 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.os.Handler
+import android.os.Looper
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 
 class PublicidadActivity : AppCompatActivity() {
     private lateinit var listaImagenesBase64: MutableList<String>
     private lateinit var imageViewPublicidad: ImageView
+    private lateinit var listaHorarios: List<Pair<String, String>> // Lista de horarios asociados a imágenes
+    private val handler = Handler(Looper.getMainLooper())
+    private var runnable: Runnable? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_publicidad)
-         imageViewPublicidad = findViewById(R.id.imagenMostrar)
-         Log.d("PublicidadActivity", "Se mostró correctamente.")
+        imageViewPublicidad = findViewById(R.id.imagenMostrar)
+        Log.d("PublicidadActivity", "Se mostró correctamente.")
 
         listaImagenesBase64 = mutableListOf()
-
+        listaHorarios = mutableListOf()
         obtenerImagenesDesdeBD()
 
         val rootView = findViewById<View>(android.R.id.content)
@@ -44,22 +54,43 @@ class PublicidadActivity : AppCompatActivity() {
                 val imagenes = imagenDao.obtenerTodasLasImagenes()
                 listaImagenesBase64.clear()
                 listaImagenesBase64.addAll(imagenes.map { it.base64 })
+                listaHorarios = imagenes.map { it.horaInicio to it.horaFin }
 
                 withContext(Dispatchers.Main) {
-
-                    Log.d(
-                        "PublicidadActivity",
-                        "Se cargaron ${listaImagenesBase64.size} imágenes desde la base de datos."
-                    )
-                    if (listaImagenesBase64.isNotEmpty()) {
-                        mostrarImagen(2) // Mostrar la primera imagen
-                    }
+                    Log.d("PublicidadActivity", "Se cargaron ${listaImagenesBase64.size} imágenes desde la base de datos.")
+                    iniciarActualizacionAutomatica()
                 }
             } catch (e: Exception) {
                 Log.e("PublicidadActivity", "Error al obtener imágenes: ${e.message}")
             }
         }
+    }
 
+    private fun iniciarActualizacionAutomatica() {
+        actualizarImagenSegunHora()
+        runnable = object : Runnable {
+            override fun run() {
+                actualizarImagenSegunHora()
+                handler.postDelayed(this, 60 * 1000) // Verificar cada minuto
+            }
+        }
+        handler.post(runnable!!)
+    }
+
+    private fun actualizarImagenSegunHora() {
+        val horaActual = obtenerHoraActual()
+        val index = listaHorarios.indexOfFirst { (inicio, fin) -> horaActual in inicio..fin }
+
+        if (index != -1) {
+            mostrarImagen(index)
+        } else {
+            Log.d("PublicidadActivity", "No hay imagen asignada para este horario.")
+        }
+    }
+
+    private fun obtenerHoraActual(): String {
+        val formato = SimpleDateFormat("HH:mm", Locale.getDefault())
+        return formato.format(Date())
     }
 
     private fun mostrarImagen(posicion: Int) {
@@ -78,5 +109,10 @@ class PublicidadActivity : AppCompatActivity() {
             Log.e("PublicidadActivity", "Error al decodificar imagen: ${e.message}")
             null
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        handler.removeCallbacks(runnable!!)
     }
 }

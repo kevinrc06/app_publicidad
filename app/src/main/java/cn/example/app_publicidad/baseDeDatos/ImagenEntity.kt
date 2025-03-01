@@ -7,5 +7,7 @@ import androidx.room.PrimaryKey
 data class ImagenEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val nombre: String,
-    val base64: String
+    val base64: String,
+    val horaInicio: String,
+    val horaFin: String
 )
