@@ -113,7 +113,7 @@ class BackgroundService : Service() {
                     descomprimirZip(it)
                     guardarImagenesEnDB(this)
                     prefs.edit().putString("ultima_fecha", fechaActual).apply()
-                } ?: Log.e("Servicio", "Error: No se pudo descargar el archivo ZIP.")
+                } ?:reintentarDescargaZip()
             }.start()
         } else {
             Log.d("Servicio", "Ya se realizó la descarga hoy, no se ejecutará nuevamente.")
@@ -134,6 +134,15 @@ class BackgroundService : Service() {
             Log.d("Servicio", "Reintentando la descarga...")
             onStartCommand(null, 0, 0) // Llama de nuevo a onStartCommand
         }, 2 * 60 * 1000) // Reintentar en 2 minutos
+    }
+
+    private fun reintentarDescargaZip() {
+        Log.e("Servicio", "Error: No se pudo descargar el archivo ZIP.")
+        val handler = Handler(Looper.getMainLooper())
+        handler.postDelayed({
+            Log.d("Servicio", "Reintentando la descarga...")
+            onStartCommand(null, 0, 0) // Llama de nuevo a onStartCommand
+        }, 10 * 60 * 1000) // Reintentar en 10 minutos
     }
 
 

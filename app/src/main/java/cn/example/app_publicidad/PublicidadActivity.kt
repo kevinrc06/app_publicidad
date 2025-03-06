@@ -84,6 +84,7 @@ class PublicidadActivity : AppCompatActivity() {
         if (index != -1) {
             mostrarImagen(index)
         } else {
+            mostrarImagenPorDefecto()
             Log.d("PublicidadActivity", "No hay imagen asignada para este horario.")
         }
     }
@@ -99,6 +100,10 @@ class PublicidadActivity : AppCompatActivity() {
             val bitmap = convertirBase64ABitmap(base64String)
             imageViewPublicidad.setImageBitmap(bitmap)
         }
+    }
+
+    private fun mostrarImagenPorDefecto() {
+        imageViewPublicidad.setImageResource(R.drawable.fondo)
     }
 
     private fun convertirBase64ABitmap(base64String: String): Bitmap? {
