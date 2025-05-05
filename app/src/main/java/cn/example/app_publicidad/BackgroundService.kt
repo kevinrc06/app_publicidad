@@ -106,7 +106,7 @@ class BackgroundService : Service() {
 
             eliminarArchivosAnteriores()
             Thread {
-                val url = "http://10.173.51.208:5000/download"
+                val url = "http://10.173.51.223:5000/download"
                 val archivoZip = descargarZip(url, "imagenes.zip", this)
 
                 archivoZip?.let {

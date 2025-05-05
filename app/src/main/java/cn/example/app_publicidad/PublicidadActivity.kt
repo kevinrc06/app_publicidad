@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.os.Handler
 import android.os.Looper
+import android.view.animation.AlphaAnimation
+import android.view.animation.Animation
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -98,7 +100,27 @@ class PublicidadActivity : AppCompatActivity() {
         if (posicion in listaImagenesBase64.indices) {
             val base64String = listaImagenesBase64[posicion]
             val bitmap = convertirBase64ABitmap(base64String)
+
+            val disappearAnimation = AlphaAnimation(1.0f,0.0f)
+            disappearAnimation.duration = 400
+
+            val appearAnimation = AlphaAnimation(0.0f,1.0f)
+            appearAnimation.duration = 3000
+
+            disappearAnimation.setAnimationListener(object : Animation.AnimationListener{
+                override fun onAnimationStart(p0: Animation?) {}
+
+                override fun onAnimationEnd(p0: Animation?) {
+                }
+
+                override fun onAnimationRepeat(p0: Animation?) {}
+
+            })
+
+            imageViewPublicidad.startAnimation(disappearAnimation)
             imageViewPublicidad.setImageBitmap(bitmap)
+            imageViewPublicidad.startAnimation(appearAnimation)
+
         }
     }
 
